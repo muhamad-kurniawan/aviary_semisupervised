@@ -145,29 +145,10 @@ class DescriptorNetwork(nn.Module):
         cry_gate: Sequence[int] = (256,),
         cry_msg: Sequence[int] = (256,),
     ) -> None:
-        """Bundles n_graph message passing layers followed by cry_heads weighted
-        attention pooling layers.
-
-        Args:
-            elem_emb_len (int): Element embedding length.
-            elem_fea_len (int, optional): Element feature length. Defaults to 64.
-            n_graph (int, optional): Number of message-passing layers. Defaults to 3.
-            elem_heads (int, optional): Message-passing heads in each MP layer.
-                Defaults to 3.
-            elem_gate (list[int], optional): Message gate layers in each MP layer.
-                Defaults to (256,).
-            elem_msg (list[int], optional): _description_. Defaults to (256,).
-            cry_heads (int, optional): _description_. Defaults to 3.
-            cry_gate (list[int], optional): _description_. Defaults to (256,).
-            cry_msg (list[int], optional): _description_. Defaults to (256,).
-        """
         super().__init__()
 
-        # apply linear transform to the input to get a trainable embedding
-        # NOTE -1 here so we can add the weights as a node feature
         self.embedding = nn.Linear(elem_emb_len, elem_fea_len - 1)
 
-        # create a list of Message passing layers
         self.graphs = nn.ModuleList(
             MessageLayer(
                 msg_fea_len=elem_fea_len,
@@ -178,7 +159,6 @@ class DescriptorNetwork(nn.Module):
             for _ in range(n_graph)
         )
 
-        # define a global pooling function for materials
         self.cry_pool = nn.ModuleList(
             WeightedAttentionPooling(
                 gate_nn=SimpleNetwork(elem_fea_len, 1, cry_gate),
@@ -194,31 +174,20 @@ class DescriptorNetwork(nn.Module):
         self_idx: LongTensor,
         nbr_idx: LongTensor,
         cry_elem_idx: LongTensor,
+        mask_idx: int = None
     ) -> Tensor:
-        """Forward pass through the DescriptorNetwork.
+        """Forward pass through the DescriptorNetwork with optional node masking."""
 
-        Args:
-            elem_weights (Tensor): Fractional weight of each Element in its
-                stoichiometry
-            elem_fea (Tensor): Element features of each of the elements in the batch
-            self_idx (LongTensor): Indices of the 1st element in each of the pairs
-            nbr_idx (LongTensor): Indices of the 2nd element in each of the pairs
-            cry_elem_idx (list[LongTensor]): Mapping from the elem idx to crystal idx
-
-        Returns:
-            Tensor: Composition representation/features after message passing
-        """
-        # embed the original features into a trainable embedding space
         elem_fea = self.embedding(elem_fea)
 
-        # add weights as a node feature
         elem_fea = torch.cat([elem_fea, elem_weights], dim=1)
 
-        # apply the message passing functions
+        if mask_idx is not None:
+            elem_fea[mask_idx] = 0  # Mask the selected node's features
+
         for graph_func in self.graphs:
             elem_fea = graph_func(elem_weights, elem_fea, self_idx, nbr_idx)
 
-        # generate crystal features by pooling the elemental features
         head_fea = [
             attn_head(elem_fea, index=cry_elem_idx, weights=elem_weights)
             for attn_head in self.cry_pool
