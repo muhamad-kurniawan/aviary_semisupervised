@@ -444,6 +444,359 @@ class BaseModelClass(nn.Module, ABC):
         cls_name = type(self).__name__
         return f"{cls_name} with {n_params:,} trainable params at {n_epochs:,} epochs"
 
+class BarlowTwinsModelClass(nn.Module, ABC):
+    """A base class for semisupervised BarlowTwins models."""
+
+    def __init__(
+        self,
+        task_dict: dict[str, TaskType],
+        robust: bool,
+        epoch: int = 0,
+        device: str | None = None,
+        best_val_scores: dict[str, float] | None = None,
+    ) -> None:
+        """Store core model parameters.
+
+        Args:
+            task_dict (dict[str, TaskType]): Map target names to "regression" or
+                "classification".
+            robust (bool): If True, the number of model outputs is doubled. 2nd output
+                for each target will be an estimate for the aleatoric uncertainty
+                (uncertainty inherent to the sample) which can be used with a robust
+                loss function to attenuate the weighting of uncertain samples.
+            epoch (int, optional): Epoch model training will begin/resume from.
+                Defaults to 0.
+            device (str, optional): Device to store the model parameters on.
+            best_val_scores (dict[str, float], optional): Validation score to use for
+                early stopping. Defaults to None.
+        """
+        super().__init__()
+        self.task_dict = task_dict
+        self.target_names = list(task_dict)
+        self.robust = robust
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = device
+        self.epoch = epoch
+        self.best_val_scores = best_val_scores or {}
+        self.es_patience = 0
+
+        self.to(self.device)
+        self.model_params: dict[str, Any] = {"task_dict": task_dict}
+
+    def fit(
+        self,
+        train_loader: DataLoader | InMemoryDataLoader,
+        val_loader: DataLoader | InMemoryDataLoader,
+        optimizer: torch.optim.Optimizer,
+        scheduler: torch.optim.lr_scheduler._LRScheduler,
+        epochs: int,
+        loss_dict: Mapping[str, tuple[TaskType, Callable]],
+        normalizer_dict: Mapping[str, Normalizer | None],
+        model_name: str,
+        run_id: int,
+        checkpoint: bool = True,
+        writer: Literal["wandb"] | SummaryWriter | None = None,
+        verbose: bool = True,
+        patience: int | None = None,
+    ) -> None:
+        """Modified training method to include self-supervised learning."""
+        
+        start_epoch = self.epoch
+    
+        try:
+            for epoch in range(start_epoch, start_epoch + epochs):
+                self.epoch += 1
+                if verbose:
+                    print(f"Epoch: [{epoch}/{start_epoch + epochs - 1}]")
+                    
+                # Iterate through batches
+                for batch in train_loader:
+                    # Normal training step with loss computation
+                    train_metrics = self.evaluate(
+                        train_loader,
+                        loss_dict=loss_dict,
+                        optimizer=optimizer,
+                        normalizer_dict=normalizer_dict,
+                        action="train",
+                        verbose=verbose,
+                    )
+                    
+                    # Add self-supervised step (Barlow Twins-like training)
+                    mask_idx = torch.randint(0, elem_fea.size(0), (1,)).item()
+                    z_unmasked, z_masked = self.model.forward_with_masking(
+                        elem_weights, elem_fea, self_idx, nbr_idx, cry_elem_idx, mask_idx
+                    )
+                    
+                    # Compute Barlow Twins loss
+                    loss = barlow_twins_loss(z_unmasked, z_masked)
+                    
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+                    
+                    if isinstance(writer, SummaryWriter):
+                        writer.add_scalar(f"train/barlow_twins_loss", loss.item(), epoch)
+    
+                    if checkpoint:
+                        # Save model checkpoint
+                        save_checkpoint(
+                            {
+                                "model_params": self.model_params,
+                                "state_dict": self.state_dict(),
+                                "epoch": self.epoch,
+                                "best_val_score": self.best_val_scores,
+                                "optimizer": optimizer.state_dict(),
+                                "scheduler": scheduler.state_dict(),
+                                "normalizer_dict": {
+                                    task: n.state_dict() if isinstance(n, Normalizer) else None
+                                    for task, n in normalizer_dict.items()
+                                },
+                            },
+                            is_best=False,
+                            model_name=model_name,
+                            run_id=run_id,
+                        )
+    
+                    scheduler.step()
+    
+            if isinstance(writer, SummaryWriter):
+                writer.close()
+    
+        except KeyboardInterrupt:
+            pass
+
+
+        if isinstance(writer, SummaryWriter):
+            writer.close()  # close TensorBoard SummaryWriter at end of training
+
+    def evaluate(
+        self,
+        data_loader: DataLoader | InMemoryDataLoader,
+        loss_dict: Mapping[str, tuple[TaskType, nn.Module]],
+        optimizer: torch.optim.Optimizer,
+        normalizer_dict: Mapping[str, Normalizer | None],
+        action: Literal["train", "evaluate"] = "train",
+        verbose: bool = False,
+        pbar: bool = False,
+    ) -> dict[str, dict[str, float]]:
+        """Evaluate the model.
+
+        Args:
+            data_loader (DataLoader): PyTorch Dataloader with the same data format used
+                in fit().
+            loss_dict (dict[str, tuple[TaskType, nn.Module]]): Dictionary of losses
+                to apply for each task.
+            optimizer (torch.optim.Optimizer): PyTorch Optimizer
+            normalizer_dict (dict[str, Normalizer]): Dictionary of Normalizers to apply
+                to each task.
+            action ("train" | "evaluate"], optional): Whether to track gradients
+                depending on whether we are carrying out a training or validation pass.
+                Defaults to "train".
+            verbose (bool, optional): Whether to print out intermediate results.
+                Defaults to False.
+            pbar (bool, optional): Whether to display a progress bar. Defaults to False.
+
+        Returns:
+            dict[str, dict["Loss" | "MAE" | "RMSE" | "Accuracy" | "F1", np.ndarray]]:
+                nested dictionary for each target of metrics averaged over an epoch.
+        """
+        if action == "evaluate":
+            self.eval()
+        elif action == "train":
+            self.train()
+        else:
+            raise NameError("Only 'train' or 'evaluate' allowed as action")
+
+        epoch_metrics: dict[str, dict[str, list[float]]] = defaultdict(
+            lambda: defaultdict(list)
+        )
+
+        # *_ discards identifiers like material_id and formula which we don't need when
+        # training tqdm(disable=None) means suppress output in non-tty (e.g. CI/log
+        # files) but keep in terminal (i.e. tty mode) https://git.io/JnBOi
+        for inputs, targets_list, *_ in tqdm(data_loader, disable=None if pbar else True):
+            inputs = [  # noqa: PLW2901
+                tensor.to(self.device) if hasattr(tensor, "to") else tensor
+                for tensor in inputs
+            ]
+            outputs = self(*inputs)
+
+            mixed_loss: Tensor = 0  # type: ignore[assignment]
+
+            for target_name, targets, output, normalizer in zip(
+                self.target_names, targets_list, outputs, normalizer_dict.values()
+            ):
+                task, loss_func = loss_dict[target_name]
+                target_metrics = epoch_metrics[target_name]
+
+                if task == "regression":
+                    assert normalizer is not None
+                    targets = normalizer.norm(targets).squeeze()  # noqa: PLW2901
+                    targets = targets.to(self.device)  # noqa: PLW2901
+
+                    if self.robust:
+                        preds, log_std = output.unbind(dim=1)
+                        loss = loss_func(preds, log_std, targets)
+                    else:
+                        preds = output.squeeze(1)
+                        loss = loss_func(preds, targets)
+
+                    z_scored_error = preds - targets
+                    error = normalizer.std * z_scored_error.data.cpu()
+                    target_metrics["MAE"].append(float(error.abs().mean()))
+                    target_metrics["MSE"].append(float(error.pow(2).mean()))
+
+                elif task == "classification":
+                    targets = targets.to(self.device)  # noqa: PLW2901
+
+                    if self.robust:
+                        pre_logits, log_std = output.chunk(2, dim=1)
+                        logits = sampled_softmax(pre_logits, log_std)
+                        loss = loss_func(torch.log(logits), targets.squeeze())
+                    else:
+                        logits = softmax(output, dim=1)
+                        loss = loss_func(output, targets)
+                    preds = logits
+
+                    logits = logits.data.cpu()
+                    targets = targets.data.cpu()  # noqa: PLW2901
+
+                    acc = float((targets == logits.argmax(dim=1)).float().mean())
+                    target_metrics["Accuracy"].append(acc)
+                    f1 = float(
+                        f1_score(targets, logits.argmax(dim=1), average="weighted")
+                    )
+                    target_metrics["F1"].append(f1)
+
+                else:
+                    raise ValueError(f"invalid task: {task}")
+
+                epoch_metrics[target_name]["Loss"].append(loss.cpu().item())
+
+                # NOTE multitasking currently just uses a direct sum of individual
+                # target losses this should be okay but is perhaps sub-optimal
+                mixed_loss += loss
+
+            if action == "train":
+                # compute gradient and take an optimizer step
+                optimizer.zero_grad()
+                mixed_loss.backward()
+                optimizer.step()
+
+        avrg_metrics: dict[str, dict[str, float]] = {}
+        for target, per_batch_metrics in epoch_metrics.items():
+            avrg_metrics[target] = {
+                metric_key: np.array(values).mean().squeeze().round(4)
+                for metric_key, values in per_batch_metrics.items()
+            }
+            # take sqrt at the end to get correct epoch RMSE as per-batch averaged RMSE
+            # != RMSE of full epoch since (sqrt(a + b) != sqrt(a) + sqrt(b))
+            avrg_mse = avrg_metrics[target].pop("MSE", None)
+            if avrg_mse:
+                avrg_metrics[target]["RMSE"] = (avrg_mse**0.5).round(4)
+
+            if verbose:
+                metrics_str = " ".join(
+                    f"{key} {val:<9.2f}" for key, val in avrg_metrics[target].items()
+                )
+                print(f"{action:>9}: {target} {metrics_str}")
+
+        return avrg_metrics
+
+    @torch.no_grad()
+    def predict(
+        self, data_loader: DataLoader | InMemoryDataLoader, verbose: bool = False
+    ) -> tuple:
+        """Make model predictions. Supports multi-tasking.
+
+        Args:
+            data_loader (DataLoader): Iterator that yields mini-batches with the same
+                data format used in fit(). To speed up inference, batch size can be set
+                much larger than during training.
+            verbose (bool, optional): Whether to print out intermediate results.
+                Defaults to False.
+
+        Returns:
+            3 tuples where tuple items correspond to different multitask targets.
+            - tuple[np.array, ...]: Tuple of target Tensors
+            - tuple[np.array, ...]: Tuple of prediction Tensors
+            - tuple[list[str], ...]: Tuple of identifiers
+        If single task, tuple will have length 1. Use this code to unpack:
+        targets, preds, ids = model.predict(data_loader)
+        targets, preds, ids = targets[0], preds[0], ids[0]
+        """
+        test_ids = []
+        test_targets = []
+        test_preds = []
+        # Ensure model is in evaluation mode
+        self.eval()
+
+        # disable output in non-tty (e.g. log files) https://git.io/JnBOi
+        for inputs, targets, *batch_ids in tqdm(
+            data_loader, disable=True if not verbose else None
+        ):
+            inputs = [  # noqa: PLW2901
+                tensor.to(self.device) if hasattr(tensor, "to") else tensor
+                for tensor in inputs
+            ]
+            preds = self(*inputs)  # forward pass to get model preds
+
+            test_ids.append(batch_ids)
+            test_targets.append(targets)
+            test_preds.append(preds)
+
+        # NOTE zip(*...) transposes list dims 0 (n_batches) and 1 (n_tasks)
+        # for multitask learning
+        targets = tuple(
+            torch.cat(targets, dim=0).view(-1).cpu().numpy()
+            for targets in zip(*test_targets)
+        )
+        predictions = tuple(torch.cat(preds, dim=0) for preds in zip(*test_preds))
+        # identifier columns
+        ids = tuple(np.concatenate(x) for x in zip(*test_ids))
+        return targets, predictions, ids
+
+    @torch.no_grad()
+    def featurize(self, data_loader: DataLoader) -> np.ndarray:
+        """Generate features for a list of composition strings. When using Roost,
+        this runs only the message-passing part of the model without the ResNet.
+
+        Args:
+            data_loader (DataLoader): PyTorch Dataloader with the same data format used
+                in fit()
+
+        Returns:
+            np.array: 2d array of features
+        """
+        if self.epoch <= 0:
+            raise AssertionError(
+                f"{self} needs to be fitted before it can be used for featurization"
+            )
+
+        self.eval()  # ensure model is in evaluation mode
+        features = []
+
+        for inputs, *_ in data_loader:
+            inputs = [  # noqa: PLW2901
+                tensor.to(self.device) if hasattr(tensor, "to") else tensor
+                for tensor in inputs
+            ]
+            output = self.trunk_nn(self.material_nn(*inputs)).cpu().numpy()
+            features.append(output)
+
+        return np.vstack(features)
+
+    @property
+    def num_params(self) -> int:
+        """Return number of trainable parameters in model."""
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+    def __repr__(self) -> str:
+        """Return model name with number of parameters and epochs trained."""
+        n_params, n_epochs = self.num_params, self.epoch
+        cls_name = type(self).__name__
+        return f"{cls_name} with {n_params:,} trainable params at {n_epochs:,} epochs"
 
 class Normalizer:
     """Normalize a Tensor and restore it later."""
