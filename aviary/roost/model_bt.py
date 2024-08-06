@@ -107,6 +107,7 @@ class Roost(BaseModelClass):
         self_idx: LongTensor,
         nbr_idx: LongTensor,
         cry_elem_idx: LongTensor,
+        mask_idx: int = None,
     ) -> tuple[Tensor, ...]:
         """Forward pass through the material_nn and output_nn.
 
@@ -121,7 +122,7 @@ class Roost(BaseModelClass):
             tuple[Tensor, ...]: _description_
         """
         crys_fea = self.material_nn(
-            elem_weights, elem_fea, self_idx, nbr_idx, cry_elem_idx
+            elem_weights, elem_fea, self_idx, nbr_idx, cry_elem_idx, mask_idx
         )
 
         crys_fea = F.relu(self.trunk_nn(crys_fea))
