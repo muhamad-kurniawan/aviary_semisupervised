@@ -143,7 +143,7 @@ class RoostBarlowTwin(BaseModelClass):
         self,
         robust: bool,
         n_targets: Sequence[int],
-        elem_emb_len: int,
+        elem_emb_len: int = 256,
         elem_fea_len: int = 64,
         n_graph: int = 3,
         elem_heads: int = 3,
