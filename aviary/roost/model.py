@@ -292,5 +292,8 @@ class RoostWithBarlowTwins(Roost):
 
         return loss.item()
 
-def test():
-    print('success')
+class Test:
+    def __init__():
+        print('yessssssssss')
+    def test():
+        print('test 2')
