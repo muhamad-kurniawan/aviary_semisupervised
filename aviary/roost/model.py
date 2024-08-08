@@ -236,8 +236,9 @@ class RoostWithBarlowTwins(Roost):
     def __init__(self, 
                  robust: bool,
                  n_targets: Sequence[int],
-                 elem_emb_len: int,):
-        super().__init__(robust, n_targets, elem_emb_len)
+                 elem_emb_len: int,
+                 **kwargs,):
+        super().__init__(robust, n_targets, elem_emb_len, **kwargs)
         
     def forward_with_masking(
         self,
