@@ -291,3 +291,6 @@ class RoostWithBarlowTwins(Roost):
         optimizer.step()
 
         return loss.item()
+
+def test():
+    print('success')
