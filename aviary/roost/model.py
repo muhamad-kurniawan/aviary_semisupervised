@@ -217,6 +217,8 @@ class DescriptorNetwork(nn.Module):
         for graph_func in self.graphs:
             elem_fea = graph_func(elem_weights, elem_fea, self_idx, nbr_idx)
 
+        print(type(elem_fea))
+        
         # generate crystal features by pooling the elemental features
         head_fea = [
             attn_head(elem_fea, index=cry_elem_idx, weights=elem_weights)
