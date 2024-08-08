@@ -233,6 +233,9 @@ class DescriptorNetwork(nn.Module):
         )
 
 class RoostWithBarlowTwins(Roost):
+    def __init__():
+        super().__init__()
+        
     def forward_with_masking(
         self,
         elem_weights: Tensor,
