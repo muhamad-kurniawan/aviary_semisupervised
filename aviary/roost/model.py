@@ -233,7 +233,7 @@ class DescriptorNetwork(nn.Module):
         )
 
 class RoostWithBarlowTwins(Roost):
-    def __init__():
+    def __init__(self):
         super().__init__()
         
     def forward_with_masking(
