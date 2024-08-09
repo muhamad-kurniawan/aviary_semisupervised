@@ -103,7 +103,7 @@ def initialize_model(
             # k: v for k, v in checkpoint["state_dict"].items() if k in model_dict
             k: v for k, v in checkpoint.items() if k in model_dict
         }
-        print(f'dict_val:{list(d.values())})
+        print(f'dict_val:{list(d.values())}')
         model_dict.update(pretrained_dict)
         model.load_state_dict(model_dict)
 
