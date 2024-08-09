@@ -268,7 +268,7 @@ class BaseModelClass(nn.Module, ABC):
             ]
             # print(inputs)
             outputs = self(*inputs)
-            print(f'output:{outputs}')
+            # print(f'output:{outputs}')
             mixed_loss: Tensor = 0  # type: ignore[assignment]
 
             for target_name, targets, output, normalizer in zip(
