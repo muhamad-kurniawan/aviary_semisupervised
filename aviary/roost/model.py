@@ -217,7 +217,7 @@ class DescriptorNetwork(nn.Module):
         for graph_func in self.graphs:
             elem_fea = graph_func(elem_weights, elem_fea, self_idx, nbr_idx)
 
-        print(type(elem_fea))
+        # print(type(elem_fea))
         
         # generate crystal features by pooling the elemental features
         head_fea = [
@@ -294,8 +294,3 @@ class RoostWithBarlowTwins(Roost):
 
         return loss.item()
 
-class Test:
-    def __init__():
-        print('yessssssssss')
-    def test():
-        print('test 2')
