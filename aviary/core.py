@@ -274,6 +274,7 @@ class BaseModelClass(nn.Module, ABC):
             for target_name, targets, output, normalizer in zip(
                 self.target_names, targets_list, outputs, normalizer_dict.values()
             ):
+                print('target:', target_name, targets, output, normalizer)
                 task, loss_func = loss_dict[target_name]
                 target_metrics = epoch_metrics[target_name]
 
