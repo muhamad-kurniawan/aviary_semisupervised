@@ -266,7 +266,7 @@ class BaseModelClass(nn.Module, ABC):
                 tensor.to(self.device) if hasattr(tensor, "to") else tensor
                 for tensor in inputs
             ]
-            print(inputs)
+            # print(inputs)
             outputs = self(*inputs)
 
             mixed_loss: Tensor = 0  # type: ignore[assignment]
