@@ -316,7 +316,37 @@ class BaseModelClass(nn.Module, ABC):
                         f1_score(targets, logits.argmax(dim=1), average="weighted")
                     )
                     target_metrics["F1"].append(f1)
+                
+                elif isinstance(task, list):
+                    assert all(t in ["regression", "classification"] for t in task)
+                    
+                    targets = targets.to(self.device)  # noqa: PLW2901
+                        
+                    if self.robust:
+                        pre_logits, log_std = output.chunk(2, dim=1)
+                        
+                        logits = sampled_softmax(pre_logits, log_std)
+                        loss = loss_func(torch.log(logits), targets.squeeze())
+                        
+                    else:
+                        
+                        logits = softmax(output, dim=1)
+                        loss = loss_func(output, targets)
+                    preds = logits
 
+                    logits = logits.data.cpu()
+                    targets = targets.data.cpu()  # noqa: PLW2901
+
+                    acc = float((targets == logits.argmax(dim=1)).float().mean())
+                    target_metrics["Accuracy"].append(acc)
+                    f1 = float(
+                        f1_score(targets, logits.argmax(dim=1), average="weighted")
+                    )
+                    target_metrics["F1"].append(f1)
+
+
+
+                
                 else:
                     raise ValueError(f"invalid task: {task}")
 
@@ -570,7 +600,6 @@ def sampled_softmax(pre_logits: Tensor, log_std: Tensor, samples: int = 10) -> T
     )
     logits = softmax(pre_logits, dim=1).view(len(log_std), samples, -1)
     return torch.mean(logits, dim=1)
-
 
 def np_softmax(arr: np.ndarray, axis: int = -1) -> np.ndarray:
     """Compute the softmax of an array along an axis.
