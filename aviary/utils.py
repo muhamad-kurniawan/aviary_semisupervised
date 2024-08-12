@@ -346,7 +346,7 @@ def train_ensemble(
             **setup_params,
             **restart_params,
         )
-        print('model_task_dict:{model.task_dict}')
+        print(f'model_task_dict:{model.task_dict}')
         loss_func_dict = initialize_losses(
             model.task_dict, loss_dict, model_params["robust"]
         )
