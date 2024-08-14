@@ -100,8 +100,8 @@ def initialize_model(
 
         model_dict = model.state_dict()
         pretrained_dict = {
-            # k: v for k, v in checkpoint["state_dict"].items() if k in model_dict
-            k: v for k, v in checkpoint.items() if k in model_dict
+            k: v for k, v in checkpoint["state_dict"].items() if k in model_dict
+            # k: v for k, v in checkpoint.items() if k in model_dict
         }
         for k, v in checkpoint.items(): 
             if k in model_dict:
