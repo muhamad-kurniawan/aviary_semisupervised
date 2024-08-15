@@ -103,9 +103,9 @@ def initialize_model(
             k: v for k, v in checkpoint["state_dict"].items() if k in model_dict
             # k: v for k, v in checkpoint.items() if k in model_dict
         }
-        print(f'checkpoint : {checkpoint["state_dict"].items()}')
-        print(f'model_dict : {model_dict}')
-        for k, v in checkpoint.items(): 
+        # print(f'checkpoint : {checkpoint["state_dict"].items()}')
+        # print(f'model_dict : {model_dict}')
+        for k, v in checkpoint["state_dict"].items(): 
             if k in model_dict:
                 print(k)
         
