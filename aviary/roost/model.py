@@ -226,6 +226,13 @@ class DescriptorNetwork(nn.Module):
             for attn_head in self.cry_pool
         ]
 
+        if 0 in cry_elem_idx:
+            print(f'elem_fea: {elem_fea}')
+            print(f'cry_elem_idx: {cry_elem_idx}')
+            
+        # if pred_idx:
+            
+
         return torch.mean(torch.stack(head_fea), dim=0)
 
     def __repr__(self) -> str:
