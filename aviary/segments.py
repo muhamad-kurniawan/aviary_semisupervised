@@ -85,7 +85,7 @@ class WeightedAttentionPooling(nn.Module):
         x = self.message_nn(x)
         return scatter_add(gate * x, index, dim=0)
 
-class WeightedAttentionPoolingNodePred(nn.Module):
+class WeightedAttentionPoolingForNodePred(nn.Module):
     """Weighted softmax attention layer."""
 
     def __init__(self, gate_nn: nn.Module, message_nn: nn.Module) -> None:
