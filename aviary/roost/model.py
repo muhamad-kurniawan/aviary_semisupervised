@@ -193,6 +193,7 @@ class DescriptorNetwork(nn.Module):
         self_idx: LongTensor,
         nbr_idx: LongTensor,
         cry_elem_idx: LongTensor,
+        pred_idx: LongTensor = None,
     ) -> Tensor:
         """Forward pass through the DescriptorNetwork.
 
