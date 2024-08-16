@@ -85,6 +85,41 @@ class WeightedAttentionPooling(nn.Module):
         x = self.message_nn(x)
         return scatter_add(gate * x, index, dim=0)
 
+class WeightedAttentionPoolingNodePred(nn.Module):
+    """Weighted softmax attention layer."""
+
+    def __init__(self, gate_nn: nn.Module, message_nn: nn.Module) -> None:
+        """Initialize softmax attention layer.
+
+        Args:
+            gate_nn (nn.Module): Neural network to calculate attention scalars
+            message_nn (nn.Module): Neural network to evaluate message updates
+        """
+        super().__init__()
+        self.gate_nn = gate_nn
+        self.message_nn = message_nn
+        self.pow = torch.nn.Parameter(torch.randn(1))
+
+    def forward(self, x: Tensor, index: Tensor, weights: Tensor) -> Tensor:
+        """Forward pass.
+
+        Args:
+            x (Tensor): Input features for nodes
+            index (Tensor): The indices for scatter operation over nodes
+            weights (Tensor): The weights to assign to nodes
+
+        Returns:
+            Tensor: Output features for nodes
+        """
+        gate = self.gate_nn(x)
+
+        gate -= scatter_max(gate, index, dim=0)[0][index]
+        gate = (weights**self.pow) * gate.exp()
+        gate /= scatter_add(gate, index, dim=0)[index] + 1e-10
+
+        x = self.message_nn(x)
+        return scatter_add(gate * x, index, dim=0)
+
     def __repr__(self) -> str:
         pow, gate_nn, message_nn = float(self.pow), self.gate_nn, self.message_nn
         return f"{type(self).__name__}({pow=:.3}, {gate_nn=}, {message_nn=})"
