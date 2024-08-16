@@ -232,6 +232,7 @@ class DescriptorNetwork(nn.Module):
             
         # if pred_idx:
             
+            
 
         return torch.mean(torch.stack(head_fea), dim=0)
 
