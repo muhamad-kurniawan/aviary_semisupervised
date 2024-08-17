@@ -136,6 +136,123 @@ class CompositionData(Dataset):
             *material_ids,
         )
 
+class CompositionDataSelfSupervised(Dataset):
+    """Dataset class for the Roost composition model."""
+
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        task_dict: dict[str, str],
+        elem_embedding: str = "matscholar200",
+        inputs: str = "composition",
+        identifiers: Sequence[str] = ("material_id", "composition"),
+    ):
+        """Data class for Roost models.
+
+        Args:
+            df (pd.DataFrame): Pandas dataframe holding input and target values.
+            task_dict (dict[str, "regression" | "classification"]): Map from target
+                names to task type.
+            elem_embedding (str, optional): One of "matscholar200", "cgcnn92",
+                "megnet16", "onehot112" or path to a file with custom element
+                embeddings. Defaults to "matscholar200".
+            inputs (str, optional): df column name holding material compositions.
+                Defaults to "composition".
+            identifiers (list, optional): df columns for distinguishing data points.
+                Will be copied over into the model's output CSV. Defaults to
+                ["material_id", "composition"].
+        """
+        if len(identifiers) != 2:
+            raise AssertionError("Two identifiers are required")
+
+        self.inputs = inputs
+        self.task_dict = task_dict
+        self.identifiers = list(identifiers)
+        self.df = df
+
+        if elem_embedding in ["matscholar200", "cgcnn92", "megnet16", "onehot112"]:
+            elem_embedding = f"{PKG_DIR}/embeddings/element/{elem_embedding}.json"
+
+        with open(elem_embedding) as file:
+            self.elem_features = json.load(file)
+
+        self.elem_emb_len = len(next(iter(self.elem_features.values())))
+
+        self.n_targets = []
+        for target, task in self.task_dict.items():
+            if task == "regression":
+                self.n_targets.append(1)
+            elif task == "classification":
+                n_classes = np.max(self.df[target].values) + 1
+                self.n_targets.append(n_classes)
+
+    def __len__(self) -> int:
+        return len(self.df)
+
+    def __repr__(self) -> str:
+        df_repr = f"cols=[{', '.join(self.df.columns)}], len={len(self.df)}"
+        return f"{type(self).__name__}({df_repr}, task_dict={self.task_dict})"
+
+    # Cache data for faster training
+    @cache  # noqa: B019
+    def __getitem__(self, idx: int):
+        """Get an entry out of the Dataset.
+
+        Args:
+            idx (int): index of entry in Dataset
+
+        Returns:
+            tuple: containing
+            - tuple[Tensor, Tensor, LongTensor, LongTensor]: Roost model inputs
+            - list[Tensor | LongTensor]: regression or classification targets
+            - list[str | int]: identifiers like material_id, composition
+        """
+        row = self.df.iloc[idx]
+        composition = row[self.inputs]
+        material_ids = row[self.identifiers].to_list()
+
+        comp_dict = Composition(composition).get_el_amt_dict()
+        elements = list(comp_dict)
+
+        weights = list(comp_dict.values())
+        weights = np.atleast_2d(weights).T / np.sum(weights)
+
+        try:
+            elem_fea = np.vstack([self.elem_features[element] for element in elements])
+        except AssertionError as exc:
+            raise AssertionError(
+                f"{material_ids} contains element types not in embedding"
+            ) from exc
+        except ValueError as exc:
+            raise ValueError(
+                f"{material_ids} composition cannot be parsed into elements"
+            ) from exc
+
+        n_elems = len(elements)
+        self_idx = []
+        nbr_idx = []
+        for elem_idx in range(n_elems):
+            self_idx += [elem_idx] * n_elems
+            nbr_idx += list(range(n_elems))
+
+        # convert all data to tensors
+        elem_weights = Tensor(weights)
+        elem_fea = Tensor(elem_fea)
+        self_idx = LongTensor(self_idx)
+        nbr_idx = LongTensor(nbr_idx)
+
+        targets = []
+        for target in self.task_dict:
+            if self.task_dict[target] == "regression":
+                targets.append(Tensor([row[target]]))
+            elif self.task_dict[target] == "classification":
+                targets.append(LongTensor([row[target]]))
+
+        return (
+            (elem_weights, elem_fea, self_idx, nbr_idx),
+            targets,
+            *material_ids,
+        )
 
 def collate_batch(
     samples: tuple[
