@@ -136,7 +136,6 @@ class CompositionData(Dataset):
             *material_ids,
         )
 
-
 def collate_batch(
     samples: tuple[
         tuple[Tensor, Tensor, LongTensor, LongTensor],
