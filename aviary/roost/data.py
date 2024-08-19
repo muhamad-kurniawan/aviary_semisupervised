@@ -218,7 +218,7 @@ class CompositionDataSelfSupervised(Dataset):
         weights = list(comp_dict.values())
         weights = np.atleast_2d(weights).T / np.sum(weights)
 
-        for n in 
+        # for n in 
 
         
         try:
