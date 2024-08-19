@@ -98,7 +98,6 @@ class CompositionData(Dataset):
 
         weights = list(comp_dict.values())
         weights = np.atleast_2d(weights).T / np.sum(weights)
-        print(weights)
 
         try:
             elem_fea = np.vstack([self.elem_features[element] for element in elements])
@@ -218,8 +217,10 @@ class CompositionDataSelfSupervised(Dataset):
         weights = list(comp_dict.values())
         weights = np.atleast_2d(weights).T / np.sum(weights)
 
-        # for n in 
-
+        for n in range(len(elements)):
+            if elements[n]=='X':
+                del elements[n]
+                del weights[n]
         
         try:
             elem_fea = np.vstack([self.elem_features[element] for element in elements])
