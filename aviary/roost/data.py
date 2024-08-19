@@ -218,7 +218,7 @@ class CompositionDataSelfSupervised(Dataset):
         weights = np.atleast_2d(weights).T / np.sum(weights)
 
         for n in range(len(elements)):
-            if elements[n]=='X':
+            if elements[n]=='Xx':
                 del elements[n]
                 del weights[n]
         
