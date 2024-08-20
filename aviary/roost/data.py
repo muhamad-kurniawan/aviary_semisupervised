@@ -11,6 +11,7 @@ from torch import LongTensor, Tensor
 from torch.utils.data import Dataset
 
 from aviary import PKG_DIR
+from aviary.utils_additional import list_element_stoichiometri
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -211,10 +212,13 @@ class CompositionDataSelfSupervised(Dataset):
         composition = row[self.inputs]
         material_ids = row[self.identifiers].to_list()
 
-        comp_dict = Composition(composition).get_el_amt_dict()
-        elements = list(comp_dict)
+        # comp_dict = Composition(composition).get_el_amt_dict()
+        comp_n_stoich = list_element_stoichiometri([composition])
+        # elements = list(comp_dict)
+        elements = comp_n_stoich[0][0]
 
-        weights = list(comp_dict.values())
+        # weights = list(comp_dict.values())
+        weights = comp_n_stoich[0][1]
         weights = np.atleast_2d(weights).T / np.sum(weights)
 
         for n in range(len(elements)):
