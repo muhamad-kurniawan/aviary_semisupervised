@@ -22,11 +22,12 @@ def list_element_stoichiometri(list_molecule):  #create list of each element wit
     start_pos_st = []
     end_pos_st = []
 
-    for m in reg_element.finditer(mol):
+    mol_ = open_bracket_multi(mol) 
+    for m in reg_element.finditer(mol_):
       ls_element.append(m.group())
       start_pos.append(m.start())
       end_pos.append(m.end())
-    for x in reg_st.finditer(mol):
+    for x in reg_st.finditer(mol_):
       ls_element_st.append(x.group())
       start_pos_st.append(x.start())
       end_pos_st.append(x.end())
