@@ -225,6 +225,7 @@ class CompositionDataSelfSupervised(Dataset):
             if elements[n]=='Xx':
                 del elements[n]
                 del weights[n]
+                break
         
         try:
             elem_fea = np.vstack([self.elem_features[element] for element in elements])
