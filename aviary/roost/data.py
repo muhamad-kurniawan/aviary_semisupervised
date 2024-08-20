@@ -219,7 +219,7 @@ class CompositionDataSelfSupervised(Dataset):
 
         # weights = list(comp_dict.values())
         weights = comp_n_stoich[0][1]
-        weights = np.atleast_2d(weights).T / np.sum(weights)
+        weights = (np.atleast_2d(weights).T / np.sum(weights)).tolist()
 
         for n in range(len(elements)):
             if elements[n]=='Xx':
