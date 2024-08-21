@@ -229,7 +229,7 @@ def initialize_losses(
             if robust:
                 loss_func_dict[name] = (task, NLLLoss())
             else:
-                loss_func_dict[name] = (task, CrossEntropyLoss(label_smoothing=0.3))
+                loss_func_dict[name] = (task, CrossEntropyLoss(label_smoothing=0.4))
 
         elif task == "regression":
             if robust:
