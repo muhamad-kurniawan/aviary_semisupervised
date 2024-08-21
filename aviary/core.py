@@ -303,8 +303,7 @@ class BaseModelClass(nn.Module, ABC):
                         logits = sampled_softmax(pre_logits, log_std)
                         loss = loss_func(torch.log(logits), targets.squeeze())
                     else:
-                        output = torch.clamp(output, min=-1e7, max=1e7) #avoid NaN
-                        
+                        # output = torch.clamp(output, min=-1e7, max=1e7) #avoid NaN       
                         logits = softmax(output, dim=1)
                         loss = loss_func(output, targets)
                     preds = logits
