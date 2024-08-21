@@ -360,7 +360,7 @@ class BaseModelClass(nn.Module, ABC):
                 optimizer.zero_grad()
                 mixed_loss.backward()
 
-                torch.nn.utils.clip_grad_norm_(self.parameters(), 1)
+                # torch.nn.utils.clip_grad_norm_(self.parameters(), 1)
                 optimizer.step()
 
         avrg_metrics: dict[str, dict[str, float]] = {}
