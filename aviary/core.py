@@ -266,6 +266,7 @@ class BaseModelClass(nn.Module, ABC):
                 tensor.to(self.device) if hasattr(tensor, "to") else tensor
                 for tensor in inputs
             ]
+            assert not torch.isnan(inputs).any(), "NaN in input data"
             # print(inputs)
             outputs = self(*inputs)
             # print(f'output:{outputs}')
