@@ -344,10 +344,7 @@ class BaseModelClass(nn.Module, ABC):
                         f1_score(targets, logits.argmax(dim=1), average="weighted")
                     )
                     target_metrics["F1"].append(f1)
-
-
-
-                
+   
                 else:
                     raise ValueError(f"invalid task: {task}")
 
@@ -361,6 +358,8 @@ class BaseModelClass(nn.Module, ABC):
                 # compute gradient and take an optimizer step
                 optimizer.zero_grad()
                 mixed_loss.backward()
+
+                torch.nn.utils.clip_grad_norm_(self.parameters(), 1)
                 optimizer.step()
 
         avrg_metrics: dict[str, dict[str, float]] = {}
