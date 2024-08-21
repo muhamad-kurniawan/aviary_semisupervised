@@ -14,7 +14,7 @@ from sklearn.metrics import f1_score
 from torch import BoolTensor, Tensor, nn
 from torch.nn.functional import softmax
 from torch.utils.tensorboard import SummaryWriter
-from torch.optim.lr_scheduler import StepLR
+# from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 
 from aviary import ROOT
@@ -259,8 +259,6 @@ class BaseModelClass(nn.Module, ABC):
             lambda: defaultdict(list)
         )
 
-        scheduler = StepLR(optimizer, step_size=15, gamma=0.5)
-
         # *_ discards identifiers like material_id and formula which we don't need when
         # training tqdm(disable=None) means suppress output in non-tty (e.g. CI/log
         # files) but keep in terminal (i.e. tty mode) https://git.io/JnBOi
@@ -364,8 +362,7 @@ class BaseModelClass(nn.Module, ABC):
                 mixed_loss.backward()
 
                 # torch.nn.utils.clip_grad_norm_(self.parameters(), 1)
-                # optimizer.step()
-                scheduler.step()
+                optimizer.step()
 
         avrg_metrics: dict[str, dict[str, float]] = {}
         for target, per_batch_metrics in epoch_metrics.items():
