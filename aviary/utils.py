@@ -22,7 +22,7 @@ from sklearn.metrics import (
 )
 from torch import LongTensor, Tensor
 from torch.nn import CrossEntropyLoss, L1Loss, MSELoss, NLLLoss
-from torch.optim import SGD, Adam, AdamW, Optimizer
+from torch.optim import SGD, Adam, AdamW, RMSprop, Optimizer
 from torch.optim.lr_scheduler import MultiStepLR, _LRScheduler
 from torch.utils.data import DataLoader, Dataset, Subset
 from torch.utils.tensorboard import SummaryWriter
@@ -144,7 +144,7 @@ def initialize_model(
 
 def initialize_optim(
     model: BaseModelClass,
-    optim: type[Optimizer] | Literal["SGD", "Adam", "AdamW"],
+    optim: type[Optimizer] | Literal["SGD", "Adam", "AdamW", "RMSprop"],
     learning_rate: float,
     weight_decay: float,
     momentum: float,
@@ -158,7 +158,7 @@ def initialize_optim(
 
     Args:
         model (BaseModelClass): Model to be optimized.
-        optim (type[Optimizer] | "SGD" | "Adam" | "AdamW"): Which optimizer to use
+        optim (type[Optimizer] | "SGD" | "Adam" | "AdamW" | "RMSprop"): Which optimizer to use
         learning_rate (float): Learning rate for optimization
         weight_decay (float): Weight decay for optimizer
         momentum (float): Momentum for optimizer
@@ -176,6 +176,13 @@ def initialize_optim(
     optimizer: Optimizer
     if optim == "SGD":
         optimizer = SGD(
+            model.parameters(),
+            lr=learning_rate,
+            weight_decay=weight_decay,
+            momentum=momentum,
+        )
+    elif optim == "RMSprop":
+        optimizer = RMSprop(
             model.parameters(),
             lr=learning_rate,
             weight_decay=weight_decay,
