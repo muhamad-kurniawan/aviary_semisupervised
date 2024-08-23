@@ -99,15 +99,28 @@ def initialize_model(
         model.to(device)
 
         model_dict = model.state_dict()
-        pretrained_dict = {
-            k: v for k, v in checkpoint["state_dict"].items() if k in model_dict
-            # k: v for k, v in checkpoint.items() if k in model_dict
-        }
-        # print(f'checkpoint : {checkpoint["state_dict"].items()}')
-        # print(f'model_dict : {model_dict}')
-        for k, v in checkpoint["state_dict"].items(): 
-            if k in model_dict:
-                print(k)
+
+        
+        # pretrained_dict = {
+        #     k: v for k, v in checkpoint["state_dict"].items() if k in model_dict
+        #     # k: v for k, v in checkpoint.items() if k in model_dict
+        # }
+        # # print(f'checkpoint : {checkpoint["state_dict"].items()}')
+        # # print(f'model_dict : {model_dict}')
+        # for k, v in checkpoint["state_dict"].items(): 
+        #     if k in model_dict:
+        #         print(k)
+        pretrained_dict = {}
+        for k, v in checkpoint["state_dict"].items():
+        if k in model_dict:
+            if v.shape == model_dict[k].shape:
+                pretrained_dict[k] = v
+            else:
+                print(f"Shape mismatch for layer {k}: "
+                      f"pretrained shape {v.shape} vs model shape {model_dict[k].shape}")
+        else:
+            print(f"Layer {k} not found in model")
+
         
         # print(f'dict_val:{list(pretrained_dict.values())}')
         model_dict.update(pretrained_dict)
