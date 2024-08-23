@@ -112,14 +112,14 @@ def initialize_model(
         #         print(k)
         pretrained_dict = {}
         for k, v in checkpoint["state_dict"].items():
-        if k in model_dict:
-            if v.shape == model_dict[k].shape:
-                pretrained_dict[k] = v
+            if k in model_dict:
+                if v.shape == model_dict[k].shape:
+                    pretrained_dict[k] = v
+                else:
+                    print(f"Shape mismatch for layer {k}: "
+                          f"pretrained shape {v.shape} vs model shape {model_dict[k].shape}")
             else:
-                print(f"Shape mismatch for layer {k}: "
-                      f"pretrained shape {v.shape} vs model shape {model_dict[k].shape}")
-        else:
-            print(f"Layer {k} not found in model")
+                print(f"Layer {k} not found in model")
 
         
         # print(f'dict_val:{list(pretrained_dict.values())}')
