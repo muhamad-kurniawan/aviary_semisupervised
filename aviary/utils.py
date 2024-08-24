@@ -128,7 +128,7 @@ def initialize_model(
 
         for name, param in model.named_parameters():
             if param.requires_grad:
-                print(name, param.data)
+                print(name)
     elif resume:
         print(f"Resuming training from {resume=}")
         checkpoint = torch.load(resume, map_location=device)
