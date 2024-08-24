@@ -126,8 +126,12 @@ def initialize_model(
         model_dict.update(pretrained_dict)
         model.load_state_dict(model_dict)
 
+        # for name, param in model.named_parameters():
+        #     if param.requires_grad:
+        #         print(name)
         for name, param in model.named_parameters():
-            if param.requires_grad:
+            if 'material_nn.graphs.0' in name:
+                param.requires_grad = False
                 print(name)
     elif resume:
         print(f"Resuming training from {resume=}")
