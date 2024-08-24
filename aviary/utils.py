@@ -43,6 +43,8 @@ def initialize_model(
     resume: str | None = None,
     fine_tune: str | None = None,
     transfer: str | None = None,
+    substrings_layer_to_freeze = None,
+    print_layers = False,
     **kwargs,
 ) -> BaseModelClass:
     """Initialise a model.
@@ -126,13 +128,15 @@ def initialize_model(
         model_dict.update(pretrained_dict)
         model.load_state_dict(model_dict)
 
-        # for name, param in model.named_parameters():
-        #     if param.requires_grad:
-        #         print(name)
-        for name, param in model.named_parameters():
-            if 'material_nn.graphs.0' in name:
-                param.requires_grad = False
+        if print_layers is True:
+            for name, param in model.named_parameters():
+                # if param.requires_grad:
                 print(name)
+        if substrings_layer_to_freeze is not None:
+            for name, param in model.named_parameters():
+                if any(substr in name for substr in substrings_layer_to_freeze):
+                    param.requires_grad = False
+                    print(name)
     elif resume:
         print(f"Resuming training from {resume=}")
         checkpoint = torch.load(resume, map_location=device)
