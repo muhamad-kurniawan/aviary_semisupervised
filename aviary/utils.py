@@ -126,6 +126,9 @@ def initialize_model(
         model_dict.update(pretrained_dict)
         model.load_state_dict(model_dict)
 
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                print name, param.data
     elif resume:
         print(f"Resuming training from {resume=}")
         checkpoint = torch.load(resume, map_location=device)
